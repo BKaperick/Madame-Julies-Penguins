@@ -1,14 +1,10 @@
 import bpy
+import bmesh
 import random
 import sys
-from math import sqrt
+from math import sqrt,pi,sin,cos
 
-def sample_position(origin=0,var=5):
-   x = random.normalvariate(origin,var)
-   y = random.normalvariate(origin,var)
-   return (x,y)
-
-def sample_position(m = 10, s=5):
+def sample_position_norm(m = 15, s=50):
     # with just one person, mean distance = m, zero support in collision.  Assume first at origin.  Assume symmetric for starters
     # E[x^2 + y^2] = m
     # 1. choose x at random, between [-2m,2m]
@@ -25,26 +21,44 @@ def sample_position(m = 10, s=5):
     # 2. let x~unif[-r2,r2]
     # 3. let b~unif{-1,1}
     # 4. let y = b*(r2-x^2)
-    r2 = random.normalvariate(m**.5, s)**2
-    x2 = random.uniform(0,r2)
-    bx = random.choice([-1,1])
-    by = random.choice([-1,1])
-    y2 = abs(r2-x2)
-    return (bx*sqrt(x2),by*sqrt(y2))
+    r = random.normalvariate(m**.5, s)**2
+    return radius_toxy(r)
+
+def sample_position(avg=(0,0),mean = 10,minr=5):
+    k = 3*mean/2
+    th = mean/k
+    r = random.gammavariate(k,th) + minr
+    return radius_toxy(avg,r)
+
+def radius_toxy(avg,r):
+    angle = random.uniform(0,2*pi)
+    return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
+
+def conify(mesh):
+    bm = bmesh.new()
+
+
 
 if __name__ == '__main__':
     # get rid of default cube at origin
     bpy.data.objects.remove(object=bpy.data.objects["Cube"])
+    bpy.data.objects["Camera"].location[2] += 10
+    bpy.data.objects["Light"].location = (0,0,15)
+    bpy.data.objects["Light"].scale = (15,15,15)
 
     # number of grid points in x,y directions
     N = int(sys.argv[1])
 
     cyl_count = 0
+    avgx = 0
+    avgy = 0
     for i in range(N):
         cyl_scale = 2*random.random()
-        x,y = sample_position()
-        print(x,y)
-        bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0))
+        x,y = sample_position(avg=(avgx,avgy))
+        avgx = (avgx*cyl_count + x)/(cyl_count+1)
+        avgy = (avgy*cyl_count + y)/(cyl_count+1)
+        bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=random.normalvariate(1,.1) + cyl_scale*.5 - .5)
+
         if cyl_count == 0:
             cyl_str = "Cylinder"
         else:
@@ -54,4 +68,3 @@ if __name__ == '__main__':
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1))
         cyl_count+=1
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
-    [print(x) for x in bpy.data.objects]
