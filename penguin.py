@@ -3,6 +3,17 @@ import bmesh
 import random
 import sys
 from math import sqrt,pi,sin,cos
+from matplotlib import pyplot as plt
+import numpy as np
+#from julia import Main#import julia
+
+from functools import reduce
+
+def vector_sum(vecs):
+    '''
+    Built-in sum() doesnt handle objects which havent implemented __radd__ since it starts by computing `0+vecs[0]`
+    '''
+    return reduce((lambda x,y:x+y),vecs)
 
 def sample_position_norm(m = 15, s=50):
     # with just one person, mean distance = m, zero support in collision.  Assume first at origin.  Assume symmetric for starters
@@ -28,18 +39,88 @@ def sample_position(avg=(0,0),mean = 10,minr=5):
     k = 3*mean/2
     th = mean/k
     r = random.gammavariate(k,th) + minr
-    return radius_toxy(avg,r)
+    return 0,0#radius_toxy(avg,r)
 
 def radius_toxy(avg,r):
     angle = random.uniform(0,2*pi)
     return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
 
-def conify(mesh):
-    bm = bmesh.new()
+def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
+    #polycoeffs = get_side_curve(1,h)
+    #knots,fvals = Main.poly_get_knots(polycoeffs)
+    knots = [0,.5,1]
+    fvals = [r,1.2*r,r]
+    indices = [e.index for e in bm.edges]
+    center_xy = vector_sum([v.co.xy for v in bm.verts])/len(bm.verts)
+    for i in indices:#bm.edges:
+        bm.edges.ensure_lookup_table()
+        e = bm.edges[i]
+        direction = e.verts[1].co - e.verts[0].co
+        if direction.dot([0,0,1]) == 0:
+            continue
+        new_verts = []
+        vtop = max(e.verts, key=lambda v: v.co.y)
+        vbottom = min(e.verts, key=lambda v: v.co.y)
+        r = vtop.co.xy - center_xy
+        for j,knot in enumerate(knots):
+            if j > 0 or j < len(knots)-1:
+                new_v = bmesh.utils.edge_split(e,e.verts[0],knot)
+                new_v = new_v[1]
+                new_v.co[0] = center_xy[0] + fvals[j]*r[0]
+                new_v.co[1] = center_xy[1] + fvals[j]*r[1]
+            if j == 0:
+                vtop.co[0] = center_xy[0] + fvals[0]*r[0]
+                vtop.co[1] = center_xy[1] + fvals[1]*r[1]
+            if j == len(knots)-1:
+                vbottom.co[0] = center_xy[0] + fvals[-1]*r[0]
+                vbottom.co[1] = center_xy[1] + fvals[-1]*r[1]
 
+
+        #bm.verts.new((e.verts[0].co + e.verts[1].co)/2)
+    #bmesh.update_edit_mesh(bpy.context.object.data)
+
+def get_side_curve(r,h):
+    a1 = random.random()*h
+    a2 = random.random()*h
+    a1p = min(a1,a2)
+    a2 = max(a1,a2)
+    a1 = a1p
+
+    b1 = (1+random.random())*r
+    b2 = random.random()*r
+    b3 = (b2+.5*random.random())*r
+    xr = [0,a1,a2,h]
+    yr = [r,b1,b2,b3]
+    p = np.polyfit(xr,yr,4)
+
+    xx = np.linspace(0,h,50)
+    #polynomial = lambda xx : p[0]*(xx**4) + p[1]*(xx**3) + p[2]*(xx**2) + p[3]*(xx) + p[4]*np.ones(xx.shape)
+    #print(polynomial(xx))
+    #plt.plot(xx,yy)
+    #plt.show()
+    return list(p)
+
+    
+
+
+
+def conify(bm,ratio=.5):
+    '''
+    Transform upright cylinder into a conic-cylinder
+    with top face `ratio` radius of bottom face
+    '''
+    for f in bm.faces:
+        if f.normal.dot([0,0,1]) <= 0:
+            continue
+        center = vector_sum([v.co for v in f.verts])/len(f.verts)
+        for v in f.verts:
+            v.co[0:2] = ratio*(v.co.xy+center.xy)
 
 
 if __name__ == '__main__':
+    
+    #Main.include('../Julia/interp.jl')
+        
     # get rid of default cube at origin
     bpy.data.objects.remove(object=bpy.data.objects["Cube"])
     bpy.data.objects["Camera"].location[2] += 10
@@ -53,11 +134,12 @@ if __name__ == '__main__':
     avgx = 0
     avgy = 0
     for i in range(N):
-        cyl_scale = 2*random.random()
+        cyl_scale = 2*random.random() + 1
         x,y = sample_position(avg=(avgx,avgy))
         avgx = (avgx*cyl_count + x)/(cyl_count+1)
         avgy = (avgy*cyl_count + y)/(cyl_count+1)
-        bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=random.normalvariate(1,.1) + cyl_scale*.5 - .5)
+        rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
+        bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=rad)
 
         if cyl_count == 0:
             cyl_str = "Cylinder"
@@ -65,6 +147,15 @@ if __name__ == '__main__':
             cyl_str = "Cylinder." + str(cyl_count).zfill(3)
         bpy.data.objects[cyl_str].scale = (1,1,cyl_scale)
         bpy.data.objects[cyl_str].location = (x,y,cyl_scale)
+        
+        mesh = bpy.context.object.data
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        #conify(bm,ratio=random.random())
+        extrude_cylinder_side(bm,rad,cyl_scale)
+        bm.to_mesh(mesh)
+        bm.free()
+
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1))
         cyl_count+=1
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
