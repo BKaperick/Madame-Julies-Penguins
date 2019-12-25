@@ -66,64 +66,47 @@ def vertical_edges(f):
             e_direction = e.verts[1].co - e.verts[0].co
             # ignore top edges
             if e_direction.dot([0,0,1]) == 0 or not (e_direction[0] == 0 and e_direction[1] == 0):
-                print("rejected ", e.verts[0].co,e.verts[1].co,e_direction)
+                #print("rejected ", e.verts[0].co,e.verts[1].co,e_direction)
                 continue
             yield e
 
 def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
     #polycoeffs = get_side_curve(1,h)
     #knots,fvals = Main.poly_get_knots(polycoeffs)
-    knots = [.5]
-    fvals = [1.2*r]
-    for f in side_faces(bm):
-        #center_xy = vector_sum([v.co.xy for v in bm.verts])/len(bm.verts)
-        center_xy = mathutils.Vector((0,0,0))
-        
-        #side_faces.append(f)
-        first = True
-        print("face", f.normal)
-        r = []
-        for e in vertical_edges(f):
-            r.append(e.verts[0])# - center_xy)
-            print("edge", e.verts[1].co - e.verts[0].co)
-            new_verts = []
-            if first:
-                first = False
-                #verts = [bmesh.utils.edge_split(e,e.verts[0],knot) for knot in knots]
-                verts = []
-                for knot in knots:
-                    enew,vnew = bmesh.utils.edge_split(e,e.verts[0],knot)
-                    verts.append(vnew)
-                    #print(type(enew))
-                    #bm.edges.new(enew)
-#                for v in verts:
-#                    bm.edges.new(v[0])
-
-
+    knots = [.5,.75]
+    fvals = [1.2*r,1.1*r]
+    vertice_lvls = dict()
+    center_xy = mathutils.Vector((0,0))
+    for e in vertical_edges(bm):
+        for knot in knots:
+            enew,vnew = bmesh.utils.edge_split(e,e.verts[0],knot)
+            if knot in vertice_lvls:
+                vertice_lvls[knot].append(vnew)
             else:
-                new_verts = [(v,bmesh.utils.edge_split(e,e.verts[0],knot)[1]) for v,knot in zip(verts,knots)]
-                #print(new_verts)
-        #        if j > 0 or j < len(knots)-1:
-        for j,knot in enumerate(knots):
-            print(len(new_verts),len(f.verts),j,)#[v.co for v in new_verts[j]])
-            bmesh.utils.face_split(f,new_verts[j][0],new_verts[j][1])
-            new_v = new_verts[j][0]
-            for ei,new_v in enumerate(new_verts[j]):
-                print("rad: ", r[ei].co.xy)
-                new_v.co[0:1] = center_xy.xy + fvals[j]*r[ei].co.xy
-                #new_v.co[0] = center_xy[0] + fvals[j]*r[0].co
-                #new_v.co[1] = center_xy + fvals[j]*r[1].co
-#                if j == 0:
-#                    vtop.co[0] = center_xy[0] + fvals[0]*r[0]
-#                    vtop.co[1] = center_xy[1] + fvals[1]*r[1]
-#                if j == len(knots)-1:
-#                    vbottom.co[0] = center_xy[0] + fvals[-1]*r[0]
-#                    vbottom.co[1] = center_xy[1] + fvals[-1]*r[1]
+                vertice_lvls[knot] = [vnew]
+        
+    for f in side_faces(bm):
+        for knot in knots:
+            vertices = vertice_lvls[knot]
+            N = len(vertices)
+            
+            # TODO: fix this disgusting hack to map vertex pairs back to face
+            # find index in vertices to apply
+            for i,v in enumerate(vertices):
+                if v in f.verts and vertices[(i+1)%N] in f.verts:
+                    start = i
+                    break
+            curr = start
+            nextcurr = (curr+1)%N
+            bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
 
-#    bmesh.ops.delete(bm,geom=side_faces,context='FACES_ONLY')
+    for knot,fval in zip(knots,fvals):
+        for v in vertice_lvls[knot]:
+#            print("before:",v.co)
+#            print(v.co.xy.length,fval*v.co.xy)
+            v.co[0:2] = fval*(v.co.xy - center_xy)
+#            print("after:",v.co)
 
-        #bm.verts.new((e.verts[0].co + e.verts[1].co)/2)
-    #bmesh.update_edit_mesh(bpy.context.object.data)
 
 def get_side_curve(r,h):
     a1 = random.random()*h
