@@ -9,6 +9,13 @@ import numpy as np
 import mathutils
 from functools import reduce
 
+
+log_file = open('log.txt','w+')
+def printl(*args):
+    line = ' '.join([str(a) for a in args])
+    log_file.write(line+'\n')
+    print(line)
+
 def vector_sum(vecs):
     '''
     Built-in sum() doesnt handle objects which havent implemented __radd__ since it starts by computing `0+vecs[0]`
@@ -39,7 +46,7 @@ def sample_position(avg=(0,0),mean = 10,minr=5):
     k = 3*mean/2
     th = mean/k
     r = random.gammavariate(k,th) + minr
-    return 0,0#radius_toxy(avg,r)
+    return radius_toxy(avg,r)
 
 def radius_toxy(avg,r):
     angle = random.uniform(0,2*pi)
@@ -66,12 +73,11 @@ def vertical_edges(f):
             e_direction = e.verts[1].co - e.verts[0].co
             # ignore top edges
             if e_direction.dot([0,0,1]) == 0 or not (e_direction[0] == 0 and e_direction[1] == 0):
-                #print("rejected ", e.verts[0].co,e.verts[1].co,e_direction)
                 continue
             maxv = e.verts[1]
             if e_direction[-1] < 0:
                 maxv = e.verts[0]
-
+            #printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
             yield e,maxv
 
 def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
@@ -80,17 +86,14 @@ def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
     knots = [.5,.75]
     fvals = [1.2*r,1.1*r]
 
-    knots = [.5]
-    fvals = [1.2*r]
+    knots = [.5,.6]
+    fvals = [1.2,1.1]
     vertice_lvls = dict()
-    center_xy = mathutils.Vector((0,0))
+    center_xy = mathutils.Vector((x,y))
     for e,v in vertical_edges(bm):
-        print(e.verts[0].co)
-        print(e.verts[1].co)
-        print(v.co)
         for knot in knots:
-            #enew,vnew = bmesh.utils.edge_split(e,max(e.verts,key=lambda v: v.co[0]),knot)
-            e,vnew = bmesh.utils.edge_split(e,v,knot)
+            v = min(e.verts, key=lambda v: v.co[2])
+            enew,vnew = bmesh.utils.edge_split(e,v,knot)
             if knot in vertice_lvls:
                 vertice_lvls[knot].append(vnew)
             else:
@@ -110,21 +113,12 @@ def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
                         break
                 curr = start
                 nextcurr = (curr+1)%N
-            if k_i == 1:
-                for vvv in f.verts:
-                    print(vvv.co)
-                print("\n")
-                print(vertices[curr].co)
-                print(vertices[nextcurr].co)
-                print("\n")
-            #bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
+            bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
 
     for knot,fval in zip(knots,fvals):
         for v in vertice_lvls[knot]:
-##            print("before:",v.co)
-##            print(v.co.xy.length,fval*v.co.xy)
-            v.co[0:2] = fval*(v.co.xy - center_xy)
-#            print("after:",v.co)
+            rad = (v.co.xy - center_xy) 
+            v.co[0:2] = fval*v.co.xy
 
 
 def get_side_curve(r,h):
@@ -143,7 +137,7 @@ def get_side_curve(r,h):
 
     xx = np.linspace(0,h,50)
     #polynomial = lambda xx : p[0]*(xx**4) + p[1]*(xx**3) + p[2]*(xx**2) + p[3]*(xx) + p[4]*np.ones(xx.shape)
-    #print(polynomial(xx))
+    #printl(polynomial(xx))
     #plt.plot(xx,yy)
     #plt.show()
     return list(p)
@@ -182,11 +176,11 @@ if __name__ == '__main__':
     avgx = 0
     avgy = 0
     for i in range(N):
-        cyl_scale = 2#2*random.random() + 1
+        cyl_scale = 2*random.random() + 1
         x,y = sample_position(avg=(avgx,avgy))
         avgx = (avgx*cyl_count + x)/(cyl_count+1)
         avgy = (avgy*cyl_count + y)/(cyl_count+1)
-        rad = 2#random.normalvariate(1,.1) + cyl_scale*.5 - .5
+        rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
         bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=rad)
 
         if cyl_count == 0:
