@@ -3,9 +3,9 @@ import bmesh
 import random
 import sys
 from math import sqrt,pi,sin,cos
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 import numpy as np
-#from julia import Main#import julia
+from julia import Main#import julia
 import mathutils
 from functools import reduce
 
@@ -80,20 +80,27 @@ def vertical_edges(f):
             #printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
             yield e,maxv
 
-def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
-    #polycoeffs = get_side_curve(1,h)
-    #knots,fvals = Main.poly_get_knots(polycoeffs)
-    knots = [.5,.75]
-    fvals = [1.2*r,1.1*r]
-
-    knots = [.5,.6]
-    fvals = [1.2,1.1]
+def extrude_cylinder_side(bm,r,h,smoothness=24,iters=100):
+    ycoeffs = get_side_curve()
+    knots,fvals = Main.poly_get_knots(ycoeffs,smoothness)
+#    knots = [.5,.75,.9]
+#    fvals = [.8,1.5,1.7]
+    knots = knots[1:-1]
+    fvals = fvals[1:-1]
+    knots = [1-k for k in knots[::-1]]
+    fvals = fvals[::-1]
+    print('\nvals ',fvals,'\nknots ',knots)
     vertice_lvls = dict()
     center_xy = mathutils.Vector((x,y))
     for e,v in vertical_edges(bm):
+        prevknot = 0
         for knot in knots:
+            knot_scaled = (knot-prevknot)/(1-prevknot)
+            prevknot = knot
+            
+
             v = min(e.verts, key=lambda v: v.co[2])
-            enew,vnew = bmesh.utils.edge_split(e,v,knot)
+            enew,vnew = bmesh.utils.edge_split(e,v,knot_scaled)
             if knot in vertice_lvls:
                 vertice_lvls[knot].append(vnew)
             else:
@@ -121,26 +128,19 @@ def extrude_cylinder_side(bm,r,h,smoothness=4,iters=100):
             v.co[0:2] = fval*v.co.xy
 
 
-def get_side_curve(r,h):
-    a1 = random.random()*h
-    a2 = random.random()*h
-    a1p = min(a1,a2)
-    a2 = max(a1,a2)
-    a1 = a1p
-
-    b1 = (1+random.random())*r
-    b2 = random.random()*r
-    b3 = (b2+.5*random.random())*r
-    xr = [0,a1,a2,h]
-    yr = [r,b1,b2,b3]
-    p = np.polyfit(xr,yr,4)
-
-    xx = np.linspace(0,h,50)
-    #polynomial = lambda xx : p[0]*(xx**4) + p[1]*(xx**3) + p[2]*(xx**2) + p[3]*(xx) + p[4]*np.ones(xx.shape)
-    #printl(polynomial(xx))
-    #plt.plot(xx,yy)
-    #plt.show()
-    return list(p)
+def get_side_curve(h=1):
+    
+    yr = [1]
+    r1 = random.random()
+    r2 = random.random()
+    r1,r2 = max(r1,r2),min(r1,r2)
+    yr.append(1 + r2)
+    yr.append(1 + r1)
+    yr.append(1 + r2)
+    yr.append(1.2 - random.random())
+    yr.append(1.2 - random.random())
+    yr.append(1)
+    return yr
 
     
 
@@ -161,7 +161,7 @@ def conify(bm,ratio=.5):
 
 if __name__ == '__main__':
     
-    #Main.include('../Julia/interp.jl')
+    Main.include('interp.jl')
         
     # get rid of default cube at origin
     bpy.data.objects.remove(object=bpy.data.objects["Cube"])
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     avgx = 0
     avgy = 0
     for i in range(N):
-        cyl_scale = 2*random.random() + 1
+        cyl_scale = 5#2*random.random() + 1
         x,y = sample_position(avg=(avgx,avgy))
         avgx = (avgx*cyl_count + x)/(cyl_count+1)
         avgy = (avgy*cyl_count + y)/(cyl_count+1)
