@@ -1,4 +1,3 @@
-
 ## Parameters ##
 #f(x) = -(exp.(x).-2.5).^2 .+ 1
 Trials = 1e3
@@ -46,7 +45,6 @@ end
 
 function get_knots(f,edges=15,trials=500)
   best_pp = range(0,stop=1,length=edges+1);
-  print("LENGTH", length(best_pp))
   best_error = Er(best_pp,f)
   
   for t in range(1,stop=Trials)
@@ -55,27 +53,41 @@ function get_knots(f,edges=15,trials=500)
     #best_pp = temp[1]
     #best_error = temp[2]
   end
-  print("LENGTH", length(best_pp))
 
   return best_pp,[fp(bpp,best_pp,f) for bpp in best_pp]
 end
 
-function poly_get_knots(ys,edges=8,trials=500)
+function poly_get_knots(ys,edges=24,trials=500)
   #p = polyfit(xs,ys,3)
   xs = range(0,1,length=length(ys))
   ys = convert(Array{Float64,1},ys)
   p = CubicSplineInterpolation(xs,ys)
+  xx = range(0,1,length=100)
   return get_knots(p,edges,trials)
 end
 
 function test_poly_get_knots()
-  xs = [1,1.2,2,3,4,  4.5]
-  ys = [0,1.2,3,2,1.5,1]
-  best_pp,fprvals = poly_get_knots(ys)
-  #plot(xx,color="blue",linewidth=2.0,linestyle="-")
+  shoulder = 1.5 + rand()
+  waist = 1 + .2*rand()
+  print(shoulder,"\n",waist,"\n")
+  bodylen = rand(8:15)
+  body = [shoulder, shoulder+.2, shoulder+.3,shoulder+.35]
+  body = vcat(body, [x for x in range(shoulder+.35,waist+.35,length=bodylen)])
+  body = vcat(body, [waist+.3, waist+.2, waist])
+  print("body",body,"\n")
+#  body = [1.5 + rand()]
+#  b = body[1]
+#  body = vcat([b,b + .1,b+.2] , [b + .2 for x in range(0,stop=bodylen-4)])
+#  body = vcat(body,[b + .1, b])
+#  feetlen = rand(1:3)
+#  feet = [1 + .1*rand() for i in range(0,stop=feetlen)]
+#  yr = vcat(body , feet)
+  yr = body
+  (best_pp,fprvals),fpp = poly_get_knots(yr)
   print("best: ", best_pp,fprvals)
-  #plot(best_pp,fprvals,color="red",linewidth=2.0,linestyle="--")
-  #plot(best_pp,f(best_pp),"ro")
+  xr = range(0,1,length=length(yr))
+  #plot(xr,yr,"ro")
+  #plot(best_pp,fpp(best_pp),"ro")
 end
 #best_pp = poly_get_knots([1,2,3])
 #test_poly_get_knots()

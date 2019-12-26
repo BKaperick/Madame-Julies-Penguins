@@ -3,7 +3,7 @@ import bmesh
 import random
 import sys
 from math import sqrt,pi,sin,cos
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 import numpy as np
 from julia import Main#import julia
 import mathutils
@@ -42,7 +42,7 @@ def sample_position_norm(m = 15, s=50):
     r = random.normalvariate(m**.5, s)**2
     return radius_toxy(r)
 
-def sample_position(avg=(0,0),mean = 10,minr=5):
+def sample_position(avg=(0,0),mean = 20,minr=10):
     k = 3*mean/2
     th = mean/k
     r = random.gammavariate(k,th) + minr
@@ -83,6 +83,7 @@ def vertical_edges(f):
 def extrude_cylinder_side(bm,r,h,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
     knots,fvals = Main.poly_get_knots(ycoeffs,smoothness)
+    maxr = max(fvals)
 #    knots = [.5,.75,.9]
 #    fvals = [.8,1.5,1.7]
     knots = knots[1:-1]
@@ -126,20 +127,24 @@ def extrude_cylinder_side(bm,r,h,smoothness=24,iters=100):
         for v in vertice_lvls[knot]:
             rad = (v.co.xy - center_xy) 
             v.co[0:2] = fval*v.co.xy
+    return maxr
+
+def add_beak(bm):
+    v = max(bm.verts, key=lambda x: x.co[1])
+    v.co[1] += 5
 
 
 def get_side_curve(h=1):
     
-    yr = [1]
-    r1 = random.random()
-    r2 = random.random()
-    r1,r2 = max(r1,r2),min(r1,r2)
-    yr.append(1 + r2)
-    yr.append(1 + r1)
-    yr.append(1 + r2)
-    yr.append(1.2 - random.random())
-    yr.append(1.2 - random.random())
-    yr.append(1)
+    shoulder = 1.5 + random.random()
+    waist = 1 + .4*random.random()
+    bodylen = random.randint(8,15)
+    body = [shoulder, shoulder+.2, shoulder+.3,shoulder+.35]
+    body = body + [x for x in np.linspace(shoulder+.35,waist+.35,bodylen)]
+    body = body + [waist+.3, waist+.2, waist]
+    feet = []
+    yr = body + feet
+    #plt.plot(yr);plt.show()
     return yr
 
     
@@ -157,7 +162,34 @@ def conify(bm,ratio=.5):
         center = vector_sum([v.co for v in f.verts])/len(f.verts)
         for v in f.verts:
             v.co[0:2] = ratio*(v.co.xy+center.xy)
+        
+def get_bm():        
+    mesh = bpy.context.object.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    return bm,mesh
+    
+def rot_x(bm,angle=pi/6):
+    ct = cos(angle); st = sin(angle)
+    rotmat = mathutils.Matrix([[1,0,0,0],[0,ct,-st,0],[0,st,ct,0],[0,0,0,1]])
+    bm.transform(rotmat)
+def rot_y(bm,angle=pi/6):
+    ct = cos(angle); st = sin(angle)
+    rotmat = mathutils.Matrix([[ct,0,st,0],[0,1,0,0],[-st,0,ct,0],[0,0,0,1]])
+    bm.transform(rotmat)
 
+def add_wing(offset=5,tilt=pi/24):
+    bpy.ops.mesh.primitive_uv_sphere_add(location=(x+offset,y,cyl_scale*3/4),radius=rad)
+    bm,mesh = get_bm()
+    mat = mathutils.Matrix([[.2,0,0,0],[0,1,0,0],[0,0,2,0],[0,0,0,0]])
+    bm.transform(mat)
+    if offset > 0:
+        angle = -tilt
+    else:
+        angle = tilt
+    rot_y(bm,angle)
+    bm.to_mesh(mesh)
+    bm.free()
 
 if __name__ == '__main__':
     
@@ -176,7 +208,7 @@ if __name__ == '__main__':
     avgx = 0
     avgy = 0
     for i in range(N):
-        cyl_scale = 5#2*random.random() + 1
+        cyl_scale = 2*random.random() + 6
         x,y = sample_position(avg=(avgx,avgy))
         avgx = (avgx*cyl_count + x)/(cyl_count+1)
         avgy = (avgy*cyl_count + y)/(cyl_count+1)
@@ -190,14 +222,22 @@ if __name__ == '__main__':
         bpy.data.objects[cyl_str].scale = (1,1,cyl_scale)
         bpy.data.objects[cyl_str].location = (x,y,cyl_scale)
         
-        mesh = bpy.context.object.data
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        #conify(bm,ratio=random.random())
-        extrude_cylinder_side(bm,rad,cyl_scale)
+        # edit body
+        bm,mesh = get_bm()
+        maxr = extrude_cylinder_side(bm,rad,cyl_scale)
         bm.to_mesh(mesh)
         bm.free()
-
-        bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1))
+        
+        print("radius", rad)
+        print("height", cyl_scale)
+        add_wing(offset=-maxr*rad)
+        add_wing(offset=+maxr*rad)
+        
+        # edit head
+        bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
+        bm,mesh = get_bm()
+        add_beak(bm)
+        bm.to_mesh(mesh)
+        bm.free()
         cyl_count+=1
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
