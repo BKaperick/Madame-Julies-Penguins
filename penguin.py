@@ -162,8 +162,9 @@ def extrude_cylinder_side(bm,knots,fvals):
                         break
                 curr = start
                 nextcurr = (curr+1)%N
-            bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
-
+            ff = bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
+            #ff[0].material_index = f.material_index
+            
     for knot,fval in zip(knots,fvals):
         for v in vertice_lvls[knot]:
             v.co[0:2] = fval*v.co.xy
@@ -259,31 +260,27 @@ if __name__ == '__main__':
             cyl_str = "Cylinder"
         else:
             cyl_str = "Cylinder." + str(cyl_count).zfill(3)
-        bpy.data.objects[cyl_str].scale = (1,1,cyl_scale)
-        bpy.data.objects[cyl_str].location = (x,y,cyl_scale)
-        
-
-
-        # edit body
-        bm,mesh = get_bm()
-        maxr = shape_body(bm)
-        #colorize_chest(bm,mesh,mat)   
-        
-
-        bm.to_mesh(mesh)
-        bm.free()
-        mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
-        color = colorize(mat=mat)
         
         obj = bpy.data.objects[cyl_str]
-        #obj.data.materials.append(mat)
-
-
+        obj.scale = (1,1,cyl_scale)
+        obj.location = (x,y,cyl_scale)
+        
+        # add body shape
+        bm,mesh = get_bm()
+        maxr = shape_body(bm)
+        bm.to_mesh(mesh)
+        bm.free()
+        
+        # add skin and chest color to body
+        skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
+        skin_color = colorize(mat=skin_mat)
+        colorize_chest(obj)   
+        
         colorize_chest(obj)
         add_wing(offset=-maxr*rad)
-        colorize(color,mat)
+        colorize(skin_color,skin_mat)
         add_wing(offset=+maxr*rad)
-        colorize(color,mat)
+        colorize(skin_color,skin_mat)
 
         obj = bpy.data.objects[cyl_str]
 
@@ -293,6 +290,7 @@ if __name__ == '__main__':
         add_beak(bm)
         bm.to_mesh(mesh)
         bm.free()
-        colorize(color,mat)
+        colorize(skin_color,skin_mat)
         cyl_count+=1
+
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
