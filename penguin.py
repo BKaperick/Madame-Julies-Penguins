@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import random
 import sys
-from math import sqrt,pi,sin,cos
+from math import sqrt,pi,sin,cos,acos
 from matplotlib import pyplot as plt
 import numpy as np
 from julia import Main#import julia
@@ -15,6 +15,10 @@ def printl(*args):
     line = ' '.join([str(a) for a in args])
     log_file.write(line+'\n')
     print(line)
+
+def angle_offset(vec1,vec2):
+    cosang = vec1.dot(vec2)/(vec1.length*sqrt(sum([x**2 for x in vec2])))
+    return acos(cosang)
 
 def vector_sum(vecs):
     '''
@@ -53,22 +57,18 @@ def radius_toxy(avg,r):
     return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
 
 def side_faces(bm):
-        f_indices = [f.index for f in bm.faces]
-        for i_f in f_indices:
-            bm.faces.ensure_lookup_table()
-            f = bm.faces[i_f]
-            f_direction = f.normal
-            if f_direction.dot([0,0,1]) != 0:
-                continue
-            yield f
+    f_indices = [f.index for f in bm.faces]
+    for i_f in f_indices:
+        bm.faces.ensure_lookup_table()
+        f = bm.faces[i_f]
+        f_direction = f.normal
+        if f_direction.dot([0,0,1]) != 0:
+            continue
+        yield f
 
 def vertical_edges(f):
         e_indices = [e.index for e in f.edges]
         edges = frozenset([e for e in f.edges])
-#        for i_e in e_indices:
-#            bm.edges.ensure_lookup_table()
-#            ed = f.edges[i_e]
-#            edges.append(ed)
         for e in edges:
             e_direction = e.verts[1].co - e.verts[0].co
             # ignore top edges
@@ -80,25 +80,66 @@ def vertical_edges(f):
             #printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
             yield e,maxv
 
-def extrude_cylinder_side(bm,r,h,smoothness=24,iters=100):
+def shape_body(bm,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
-    knots,fvals = Main.poly_get_knots(ycoeffs,smoothness)
-    maxr = max(fvals)
-#    knots = [.5,.75,.9]
-#    fvals = [.8,1.5,1.7]
+    #knots,fvals = Main.poly_get_knots(ycoeffs,smoothness,iters)
+    knots = [0,.2,.4,.7,1]
+    fvals = [.9,1.1,1.5,1]
     knots = knots[1:-1]
     fvals = fvals[1:-1]
     knots = [1-k for k in knots[::-1]]
     fvals = fvals[::-1]
-    print('\nvals ',fvals,'\nknots ',knots)
+    return extrude_cylinder_side(bm,knots,fvals)
+
+def colorize(color_scaled=None,mat=None):
+    activeObject = bpy.context.active_object #Set active object to variable
+    activeObject.data.materials.append(mat) #add the material to the object
+    #mat.diffuse_color = (1, 5, .2, 1) #yellow
+    #mat.diffuse_color = (1, .2, 5, 1) #violet
+    probs = [100,10,100,10,10,10,10,10,10,100]
+    colors = [
+            (123,104,238),  # medium slate blue
+            (230,230,250),  # lavender
+            (0,191,255),    # deep sky blue
+            (30,144,255),   # dodger blue
+            (100,149,237),  # corn flower blue
+            (70,130,180),   # steel blue
+            (0,0,205),      # medium blue
+            (72,61,139),    # dark slate blue
+            (112,128,144),  # slate gray
+            (192,192,192),  # silver
+            ]
+    if not color_scaled:
+        color = random.choices(colors, probs)[0]
+        color = [c + random.uniform(-10,10) for c in color]
+        color_scaled = tuple([c/255 for c in color] + [1])
+
+    mat.diffuse_color = color_scaled #blue
+    return color_scaled
+
+def colorize_chest(obj, epsilon = pi/6):
+    matchest = bpy.data.materials.new(name="chest")
+    matchest.diffuse_color = (1,1,1,1)
+    obj.data.materials.append(matchest)
+    count = [0,0]
+    for i,f in enumerate(obj.data.polygons):
+        if abs(angle_offset(f.normal,[0,1,0])) < epsilon:
+            obj.data.polygons[i].material_index = 1
+        else:
+            obj.data.polygons[i].material_index = 0
+
+def extrude_cylinder_side(bm,knots,fvals):
+    '''
+    knots should be a list of n values in (0,1) with 0 being top of body, 1 being the bottom
+    fvals are the extent of protusions, in units of multiples of the cylinder's radius
+    '''
+    maxr = max(fvals)
     vertice_lvls = dict()
-    center_xy = mathutils.Vector((x,y))
     for e,v in vertical_edges(bm):
         prevknot = 0
         for knot in knots:
             knot_scaled = (knot-prevknot)/(1-prevknot)
             prevknot = knot
-            
 
             v = min(e.verts, key=lambda v: v.co[2])
             enew,vnew = bmesh.utils.edge_split(e,v,knot_scaled)
@@ -125,7 +166,6 @@ def extrude_cylinder_side(bm,r,h,smoothness=24,iters=100):
 
     for knot,fval in zip(knots,fvals):
         for v in vertice_lvls[knot]:
-            rad = (v.co.xy - center_xy) 
             v.co[0:2] = fval*v.co.xy
     return maxr
 
@@ -222,22 +262,37 @@ if __name__ == '__main__':
         bpy.data.objects[cyl_str].scale = (1,1,cyl_scale)
         bpy.data.objects[cyl_str].location = (x,y,cyl_scale)
         
+
+
         # edit body
         bm,mesh = get_bm()
-        maxr = extrude_cylinder_side(bm,rad,cyl_scale)
+        maxr = shape_body(bm)
+        #colorize_chest(bm,mesh,mat)   
+        
+
         bm.to_mesh(mesh)
         bm.free()
+        mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
+        color = colorize(mat=mat)
         
-        print("radius", rad)
-        print("height", cyl_scale)
+        obj = bpy.data.objects[cyl_str]
+        #obj.data.materials.append(mat)
+
+
+        colorize_chest(obj)
         add_wing(offset=-maxr*rad)
+        colorize(color,mat)
         add_wing(offset=+maxr*rad)
-        
+        colorize(color,mat)
+
+        obj = bpy.data.objects[cyl_str]
+
         # edit head
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
         bm,mesh = get_bm()
         add_beak(bm)
         bm.to_mesh(mesh)
         bm.free()
+        colorize(color,mat)
         cyl_count+=1
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
