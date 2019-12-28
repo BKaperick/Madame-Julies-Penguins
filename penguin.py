@@ -82,9 +82,9 @@ def vertical_edges(f):
 
 def shape_body(bm,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
-    #knots,fvals = Main.poly_get_knots(ycoeffs,smoothness,iters)
-    knots = [0,.2,.4,.7,1]
-    fvals = [.9,1.1,1.5,1]
+    knots,fvals = Main.poly_get_knots(ycoeffs,smoothness,iters)
+    #knots = [0,.2,.4,.7,1]
+    #fvals = [.9,1.1,1.5,1]
     knots = knots[1:-1]
     fvals = fvals[1:-1]
     knots = [1-k for k in knots[::-1]]
