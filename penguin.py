@@ -117,16 +117,16 @@ def colorize(color_scaled=None,mat=None):
     mat.diffuse_color = color_scaled #blue
     return color_scaled
 
-def colorize_chest(obj, epsilon = pi/6):
+def make_material(color, name):
     matchest = bpy.data.materials.new(name="chest")
-    matchest.diffuse_color = (1,1,1,1)
+    matchest.diffuse_color = tuple(list(color)+[1])
     obj.data.materials.append(matchest)
-    count = [0,0]
+
+def colorize_chest(obj, epsilon = pi/6):
+    make_material([1,1,1], "chest")
     for i,f in enumerate(obj.data.polygons):
         if abs(angle_offset(f.normal,[0,1,0])) < epsilon:
-            obj.data.polygons[i].material_index = 1
-        else:
-            obj.data.polygons[i].material_index = 0
+            f.material_index += 1
 
 def extrude_cylinder_side(bm,knots,fvals):
     '''
