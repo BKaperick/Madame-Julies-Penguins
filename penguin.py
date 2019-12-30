@@ -27,22 +27,6 @@ def vector_sum(vecs):
     return reduce((lambda x,y:x+y),vecs)
 
 def sample_position_norm(m = 15, s=50):
-    # with just one person, mean distance = m, zero support in collision.  Assume first at origin.  Assume symmetric for starters
-    # E[x^2 + y^2] = m
-    # 1. choose x at random, between [-2m,2m]
-    # now, E[y^2] = m - x^2
-    # 2. sample z~N(m-x^2,???)
-    # 3. set y = sqrt(z)
-    # 4. sample binary b~{-1,1} and set y = b*y
-#    x = random.random()*2*m - m
-#    z = random.normalvariate(m-x**2,10)
-#    y = random.choice([-1,1])*(abs(z)**.5)
-#    return (x,y)
-
-    # 1. let r2~N(sqrt(m),s)^2 
-    # 2. let x~unif[-r2,r2]
-    # 3. let b~unif{-1,1}
-    # 4. let y = b*(r2-x^2)
     r = random.normalvariate(m**.5, s)**2
     return radius_toxy(r)
 
@@ -50,7 +34,7 @@ def sample_position(avg=(0,0),mean = 20,minr=10):
     k = 3*mean/2
     th = mean/k
     r = random.gammavariate(k,th) + minr
-    return radius_toxy(avg,r)
+    return 0,0#radius_toxy(avg,r)
 
 def radius_toxy(avg,r):
     angle = random.uniform(0,2*pi)
@@ -117,16 +101,31 @@ def colorize(color_scaled=None,mat=None):
     mat.diffuse_color = color_scaled #blue
     return color_scaled
 
-def make_material(color, name):
-    matchest = bpy.data.materials.new(name="chest")
-    matchest.diffuse_color = tuple(list(color)+[1])
-    obj.data.materials.append(matchest)
+def init_material(color, name):
+    new_mat = bpy.data.materials.new(name=name)
+    new_mat.diffuse_color = tuple(list(color)+[1])
+    return new_mat
 
-def colorize_chest(obj, epsilon = pi/6):
-    make_material([1,1,1], "chest")
+#def make_material(obj,color, name):
+#    new_mat = init_material(color, name)
+#    obj.data.materials.append(new_mat)
+
+def colorize_chest(obj, chest_mat, epsilon = pi/6):
+    obj.data.materials.append(chest_mat)
     for i,f in enumerate(obj.data.polygons):
         if abs(angle_offset(f.normal,[0,1,0])) < epsilon:
             f.material_index += 1
+
+def colorize_beak(obj,mesh,beak_mat,beak_faces):
+    obj.data.materials.append(beak_mat)
+    fs = [f for f in mesh.faces if beak_faces in [v.index for v in f.verts]]
+    #print(list(obj.data.materials)[1].color)
+    #print([(x.name,list(x.diffuse_color)) for x in obj.data.materials])
+    for f in mesh.faces:#fs:
+        f.material_index = 1
+    #for f in beak_faces:
+        #print(f)#.material_index)# += 1
+
 
 def extrude_cylinder_side(bm,knots,fvals):
     '''
@@ -163,7 +162,7 @@ def extrude_cylinder_side(bm,knots,fvals):
                 curr = start
                 nextcurr = (curr+1)%N
             ff = bmesh.utils.face_split(f,vertices[curr],vertices[nextcurr])
-            #ff[0].material_index = f.material_index
+            ff[0].material_index = f.material_index
             
     for knot,fval in zip(knots,fvals):
         for v in vertice_lvls[knot]:
@@ -173,6 +172,11 @@ def extrude_cylinder_side(bm,knots,fvals):
 def add_beak(bm):
     v = max(bm.verts, key=lambda x: x.co[1])
     v.co[1] += 5
+    #print(v.link_faces)
+    #for f in v.link_faces:
+    #    print(f)
+    return v.index
+    #return v.link_faces
 
 
 def get_side_curve(h=1):
@@ -214,6 +218,7 @@ def rot_x(bm,angle=pi/6):
     ct = cos(angle); st = sin(angle)
     rotmat = mathutils.Matrix([[1,0,0,0],[0,ct,-st,0],[0,st,ct,0],[0,0,0,1]])
     bm.transform(rotmat)
+
 def rot_y(bm,angle=pi/6):
     ct = cos(angle); st = sin(angle)
     rotmat = mathutils.Matrix([[ct,0,st,0],[0,1,0,0],[-st,0,ct,0],[0,0,0,1]])
@@ -248,9 +253,16 @@ if __name__ == '__main__':
     cyl_count = 0
     avgx = 0
     avgy = 0
+    
+    chest_mat = init_material([1,1,1],"chest")
+    beak_mat = init_material([1,0,0],"beak")
+
+
+
     for i in range(N):
         cyl_scale = 2*random.random() + 6
         x,y = sample_position(avg=(avgx,avgy))
+        x = x+15*i
         avgx = (avgx*cyl_count + x)/(cyl_count+1)
         avgy = (avgy*cyl_count + y)/(cyl_count+1)
         rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
@@ -258,39 +270,45 @@ if __name__ == '__main__':
 
         if cyl_count == 0:
             cyl_str = "Cylinder"
+            sphere_str = "Sphere"
         else:
             cyl_str = "Cylinder." + str(cyl_count).zfill(3)
+            sphere_str = "Sphere." + str(cyl_count).zfill(3)
         
-        obj = bpy.data.objects[cyl_str]
-        obj.scale = (1,1,cyl_scale)
-        obj.location = (x,y,cyl_scale)
+        body_obj = bpy.data.objects[cyl_str]
+        body_obj.scale = (1,1,cyl_scale)
+        body_obj.location = (x,y,cyl_scale)
         
+        # add skin and chest color to body
+        skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
+        skin_color = colorize(obj,mat=skin_mat)
+        colorize_chest(body_obj, chest_mat)   
+
         # add body shape
         bm,mesh = get_bm()
         maxr = shape_body(bm)
         bm.to_mesh(mesh)
         bm.free()
         
-        # add skin and chest color to body
-        skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
-        skin_color = colorize(mat=skin_mat)
-        colorize_chest(obj)   
-        
-        colorize_chest(obj)
+        # add wings
         add_wing(offset=-maxr*rad)
-        colorize(skin_color,skin_mat)
+        #colorize(skin_color,skin_mat)
         add_wing(offset=+maxr*rad)
-        colorize(skin_color,skin_mat)
+        #colorize(skin_color,skin_mat)
 
-        obj = bpy.data.objects[cyl_str]
-
-        # edit head
+        # initialize head
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
+        head_obj = bpy.data.objects[sphere_str]
         bm,mesh = get_bm()
-        add_beak(bm)
+        
+        beak_faces = add_beak(bm)
+        
+        # head color
+        colorize(skin_color,skin_mat)
+        colorize_beak(head_obj,bm,beak_mat,beak_faces)
+
         bm.to_mesh(mesh)
         bm.free()
-        colorize(skin_color,skin_mat)
         cyl_count+=1
 
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
