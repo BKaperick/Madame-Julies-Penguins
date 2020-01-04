@@ -9,12 +9,17 @@ from julia import Main#import julia
 import mathutils
 from functools import reduce
 
-
+VERBOSITY = int(sys.argv[2]) if len(sys.argv) >= 3 else 0
 log_file = open('log.txt','w+')
 def printl(*args):
     line = ' '.join([str(a) for a in args])
     log_file.write(line+'\n')
     print(line)
+
+def append_material(obj, mat):
+    if VERBOSITY:
+        print('adding ',mat.name,' to ', obj.name)
+    obj.data.materials.append(mat)
 
 def angle_offset(vec1,vec2):
     cosang = vec1.dot(vec2)/(vec1.length*sqrt(sum([x**2 for x in vec2])))
@@ -98,8 +103,8 @@ def colorize(obj,mat=None):
         color = [c + random.uniform(-10,10) for c in color]
         color_scaled = [c/255 for c in color]
         mat = init_material(color_scaled, "skin")    
-
-    obj.data.materials.append(mat) #add the material to the object
+    
+    append_material(obj, mat)
     #mat.diffuse_color = color_scaled #blue
     #return color_scaled
     return mat
@@ -109,26 +114,20 @@ def init_material(color, name):
     new_mat.diffuse_color = tuple(list(color)+[1])
     return new_mat
 
-#def make_material(obj,color, name):
-#    new_mat = init_material(color, name)
-#    obj.data.materials.append(new_mat)
-
 def colorize_chest(obj, chest_mat, epsilon = pi/6):
-    obj.data.materials.append(chest_mat)
+    append_material(obj,chest_mat)
     for i,f in enumerate(obj.data.polygons):
         if abs(angle_offset(f.normal,[0,1,0])) < epsilon:
             f.material_index += 1
 
 def colorize_beak(obj,mesh,beak_mat,beak_faces):
+    append_material(obj,beak_mat)
     obj.data.materials.append(beak_mat)
-    fs = [f for f in mesh.faces if beak_faces in [v.index for v in f.verts]]
-    #print(list(obj.data.materials)[1].color)
-    #print([(x.name,list(x.diffuse_color)) for x in obj.data.materials])
-    for f in mesh.faces:#fs:
-        f.material_index = 1
-    #for f in beak_faces:
-        #print(f)#.material_index)# += 1
 
+    n = len(obj.data.materials)
+    fs = [f for f in mesh.faces if beak_faces in [v.index for v in f.verts]]
+    for f in fs:
+        f.material_index = n-1
 
 def extrude_cylinder_side(bm,knots,fvals):
     '''
@@ -184,6 +183,7 @@ def add_beak(bm):
 
 def get_side_curve(h=1):
     archetype = random.getrandbits(1)
+    archetype = 1
     if archetype:
         # Broad-shouldered archetype
         shoulder = 1.5 + random.random()
@@ -268,7 +268,7 @@ def add_wing(offset=5,tilt=pi/24):
     rot_y(bm,angle)
     bm.to_mesh(mesh)
     bm.free()
-    print("wing: ", obj)
+    #print("wing: ", obj)
     return obj
 
 if __name__ == '__main__':
@@ -303,18 +303,18 @@ if __name__ == '__main__':
         bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=rad)
 
         if cyl_count == 0:
-            cyl_str = "Cylinder"
-            sphere_str = "Sphere"
+            body_name = "Cylinder"
+            head_name = "Sphere.002"
         else:
-            cyl_str = "Cylinder." + str(cyl_count).zfill(3)
-            sphere_str = "Sphere." + str(cyl_count).zfill(3)
+            body_name = "Cylinder." + str(cyl_count).zfill(3)
+            head_name = "Sphere." + str(3*cyl_count+2).zfill(3)
         
-        body_obj = bpy.data.objects[cyl_str]
+        body_obj = bpy.data.objects[body_name]
         body_obj.scale = (1,1,cyl_scale)
         body_obj.location = (x,y,cyl_scale)
         
         # add skin and chest color to body
-        #skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
+        #skin_mat = bpy.data.materials.new(name="skin_"+body_name) #set new material to variable
         skin_mat = colorize(body_obj)
         colorize_chest(body_obj, chest_mat)   
 
@@ -332,7 +332,7 @@ if __name__ == '__main__':
 
         # initialize head
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
-        head_obj = bpy.data.objects[sphere_str]
+        head_obj = bpy.data.objects[head_name]
         bm,mesh = get_bm()
         
         beak_faces = add_beak(bm)
