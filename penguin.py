@@ -11,6 +11,17 @@ from functools import reduce
 
 VERBOSITY = int(sys.argv[2]) if len(sys.argv) >= 3 else 0
 log_file = open('log.txt','w+')
+
+def logger(func):
+    fname = func.__name__
+    def wrapper(*args, **kwargs):
+        output = func(*args, **kwargs)
+        if VERBOSITY:
+            print("{0}({1},{2}) =>\n{3}".format(fname, args if args else "", kwargs if kwargs else "", output))
+        return output
+    return wrapper
+
+
 def printl(*args):
     line = ' '.join([str(a) for a in args])
     log_file.write(line+'\n')
@@ -71,8 +82,11 @@ def vertical_edges(f):
 
 def shape_body(bm,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
+    
     #TODO: Think about doing this in a vectorized fashion so that we need only one Julia call.  May be much faster.
     knots,fvals = Main.poly_get_knots(ycoeffs,smoothness,iters)
+
+    # simple test values to use in debugging where body shape is not necessary and want to comment out Julia call
     #knots = [0,.2,.4,.7,1]
     #fvals = [.9,1.1,1.5,1]
     knots = knots[1:-1]
@@ -129,6 +143,7 @@ def colorize_beak(obj,mesh,beak_mat,beak_faces):
     for f in fs:
         f.material_index = n-1
 
+@logger
 def extrude_cylinder_side(bm,knots,fvals):
     '''
     knots should be a list of n values in (0,1) with 0 being top of body, 1 being the bottom
@@ -171,19 +186,19 @@ def extrude_cylinder_side(bm,knots,fvals):
             v.co[0:2] = fval*v.co.xy
     return maxr
 
+@logger
 def add_beak(bm):
     v = max(bm.verts, key=lambda x: x.co[1])
-    v.co[1] += 5
+    v.co[1] += random.normalvariate(5,1)
     #print(v.link_faces)
     #for f in v.link_faces:
     #    print(f)
     return v.index
     #return v.link_faces
 
-
+@logger
 def get_side_curve(h=1):
     archetype = random.getrandbits(1)
-    archetype = 1
     if archetype:
         # Broad-shouldered archetype
         shoulder = 1.5 + random.random()
@@ -197,6 +212,7 @@ def get_side_curve(h=1):
         #.35 and .3 constants are someone arbitrary, tuned to look nicely proportional
         # shoulder goes from `shoulder` to `shoulder+.35`
         body = [shoulder + x**(1/shoulder_curvature) for x in np.linspace(0,.35**shoulder_curvature,4)]
+        # torso is just linear between shoulder and waist
         body = body + [x for x in np.linspace(shoulder+.35,waist+.3,bodylen)]
         # waist goes from `waist+.3` to `waist`
         body = body + [waist+x**(1/waist_curvature) for x in np.linspace(.3**waist_curvature,0,3)]
@@ -204,7 +220,7 @@ def get_side_curve(h=1):
     else:
         # Pot-bellied archetype
         shoulder = 1 + .5*random.random()
-        waist = .5*random.random()
+        waist = random.random()
         bodylen = random.randint(8,15)
         waist_offset = random.randint(-2,2)
         
@@ -215,13 +231,11 @@ def get_side_curve(h=1):
         # upper half goes from `shoulder` to `shoulder+waist`
         body = [shoulder + x**(1/upper_curvature) for x in np.linspace(0,waist**upper_curvature, bodylen//2 - waist_offset)]
         # lower half goes from `shoulder+waist` to `shoulder`
-        #body = [shoulder + waist + x**(1/upper_curvature) for x in np.linspace(waist**lower_curvature, shoulder, bodylen//2 + waist_offset)]
-        body = [shoulder + x**(1/lower_curvature) for x in np.linspace(waist**lower_curvature, 0, bodylen//2 + waist_offset)]
+        body = body + [shoulder + x**(1/lower_curvature) for x in np.linspace(waist**lower_curvature, 0, bodylen//2 + waist_offset)]
     
     feet = []
     yr = body + feet
-    #plt.plot(yr);plt.show()
-    return yr
+    return yr 
 
     
 
@@ -289,7 +303,7 @@ if __name__ == '__main__':
     avgy = 0
     
     chest_mat = init_material([1,1,1],"chest")
-    beak_mat = init_material([1,0,0],"beak")
+    beak_mat = init_material([1,140/255,0],"beak")
 
 
 
