@@ -66,6 +66,7 @@ def vertical_edges(f):
 
 def shape_body(bm,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
+    #TODO: Think about doing this in a vectorized fashion so that we need only one Julia call.  May be much faster.
     knots,fvals = Main.poly_get_knots(ycoeffs,smoothness,iters)
     #knots = [0,.2,.4,.7,1]
     #fvals = [.9,1.1,1.5,1]
@@ -183,7 +184,6 @@ def add_beak(bm):
 
 def get_side_curve(h=1):
     archetype = random.getrandbits(1)
-
     if archetype:
         # Broad-shouldered archetype
         shoulder = 1.5 + random.random()
@@ -203,7 +203,7 @@ def get_side_curve(h=1):
 
     else:
         # Pot-bellied archetype
-        shoulder = 1 + random.random()
+        shoulder = 1 + .5*random.random()
         waist = .5*random.random()
         bodylen = random.randint(8,15)
         waist_offset = random.randint(-2,2)
@@ -215,7 +215,8 @@ def get_side_curve(h=1):
         # upper half goes from `shoulder` to `shoulder+waist`
         body = [shoulder + x**(1/upper_curvature) for x in np.linspace(0,waist**upper_curvature, bodylen//2 - waist_offset)]
         # lower half goes from `shoulder+waist` to `shoulder`
-        body = [shoulder + waist + x**(1/upper_curvature) for x in np.linspace(waist**lower_curvature, shoulder, bodylen//2 + waist_offset)]
+        #body = [shoulder + waist + x**(1/upper_curvature) for x in np.linspace(waist**lower_curvature, shoulder, bodylen//2 + waist_offset)]
+        body = [shoulder + x**(1/lower_curvature) for x in np.linspace(waist**lower_curvature, 0, bodylen//2 + waist_offset)]
     
     feet = []
     yr = body + feet
