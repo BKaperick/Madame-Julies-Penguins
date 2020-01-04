@@ -75,11 +75,10 @@ def shape_body(bm,smoothness=24,iters=100):
     fvals = fvals[::-1]
     return extrude_cylinder_side(bm,knots,fvals)
 
-def colorize(color_scaled=None,mat=None):
-    activeObject = bpy.context.active_object #Set active object to variable
-    activeObject.data.materials.append(mat) #add the material to the object
+def colorize(obj,mat=None):
+    #activeObject = bpy.context.active_object #Set active object to variable
+
     #mat.diffuse_color = (1, 5, .2, 1) #yellow
-    #mat.diffuse_color = (1, .2, 5, 1) #violet
     probs = [100,10,100,10,10,10,10,10,10,100]
     colors = [
             (123,104,238),  # medium slate blue
@@ -93,13 +92,16 @@ def colorize(color_scaled=None,mat=None):
             (112,128,144),  # slate gray
             (192,192,192),  # silver
             ]
-    if not color_scaled:
+    if not mat:
         color = random.choices(colors, probs)[0]
         color = [c + random.uniform(-10,10) for c in color]
-        color_scaled = tuple([c/255 for c in color] + [1])
+        color_scaled = [c/255 for c in color]
+        mat = init_material(color_scaled, "skin")    
 
-    mat.diffuse_color = color_scaled #blue
-    return color_scaled
+    obj.data.materials.append(mat) #add the material to the object
+    #mat.diffuse_color = color_scaled #blue
+    #return color_scaled
+    return mat
 
 def init_material(color, name):
     new_mat = bpy.data.materials.new(name=name)
@@ -180,13 +182,41 @@ def add_beak(bm):
 
 
 def get_side_curve(h=1):
+    archetype = random.getrandbits(1)
+
+    if archetype:
+        # Broad-shouldered archetype
+        shoulder = 1.5 + random.random()
+        waist = 1 + .4*random.random()
+        bodylen = random.randint(8,15)
+        
+        # if shoulder/waist curve is linear, quadratic, or cubic
+        shoulder_curvature = random.choice([1,2,3])
+        waist_curvature = random.choice([1,2,3])
+        
+        #.35 and .3 constants are someone arbitrary, tuned to look nicely proportional
+        # shoulder goes from `shoulder` to `shoulder+.35`
+        body = [shoulder + x**(1/shoulder_curvature) for x in np.linspace(0,.35**shoulder_curvature,4)]
+        body = body + [x for x in np.linspace(shoulder+.35,waist+.3,bodylen)]
+        # waist goes from `waist+.3` to `waist`
+        body = body + [waist+x**(1/waist_curvature) for x in np.linspace(.3**waist_curvature,0,3)]
+
+    else:
+        # Pot-bellied archetype
+        shoulder = 1 + random.random()
+        waist = .5*random.random()
+        bodylen = random.randint(8,15)
+        waist_offset = random.randint(-2,2)
+        
+        # if shoulder/waist curve is linear, quadratic, or cubic
+        upper_curvature = random.choice([1,2,3])
+        lower_curvature = random.choice([1,2,3])
+        
+        # upper half goes from `shoulder` to `shoulder+waist`
+        body = [shoulder + x**(1/upper_curvature) for x in np.linspace(0,waist**upper_curvature, bodylen//2 - waist_offset)]
+        # lower half goes from `shoulder+waist` to `shoulder`
+        body = [shoulder + waist + x**(1/upper_curvature) for x in np.linspace(waist**lower_curvature, shoulder, bodylen//2 + waist_offset)]
     
-    shoulder = 1.5 + random.random()
-    waist = 1 + .4*random.random()
-    bodylen = random.randint(8,15)
-    body = [shoulder, shoulder+.2, shoulder+.3,shoulder+.35]
-    body = body + [x for x in np.linspace(shoulder+.35,waist+.35,bodylen)]
-    body = body + [waist+.3, waist+.2, waist]
     feet = []
     yr = body + feet
     #plt.plot(yr);plt.show()
@@ -226,6 +256,7 @@ def rot_y(bm,angle=pi/6):
 
 def add_wing(offset=5,tilt=pi/24):
     bpy.ops.mesh.primitive_uv_sphere_add(location=(x+offset,y,cyl_scale*3/4),radius=rad)
+    obj = bpy.context.active_object
     bm,mesh = get_bm()
     mat = mathutils.Matrix([[.2,0,0,0],[0,1,0,0],[0,0,2,0],[0,0,0,0]])
     bm.transform(mat)
@@ -236,6 +267,8 @@ def add_wing(offset=5,tilt=pi/24):
     rot_y(bm,angle)
     bm.to_mesh(mesh)
     bm.free()
+    print("wing: ", obj)
+    return obj
 
 if __name__ == '__main__':
     
@@ -280,8 +313,8 @@ if __name__ == '__main__':
         body_obj.location = (x,y,cyl_scale)
         
         # add skin and chest color to body
-        skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
-        skin_color = colorize(obj,mat=skin_mat)
+        #skin_mat = bpy.data.materials.new(name="skin_"+cyl_str) #set new material to variable
+        skin_mat = colorize(body_obj)
         colorize_chest(body_obj, chest_mat)   
 
         # add body shape
@@ -291,10 +324,10 @@ if __name__ == '__main__':
         bm.free()
         
         # add wings
-        add_wing(offset=-maxr*rad)
-        #colorize(skin_color,skin_mat)
-        add_wing(offset=+maxr*rad)
-        #colorize(skin_color,skin_mat)
+        wing_obj = add_wing(offset=-maxr*rad)
+        colorize(wing_obj,skin_mat)
+        wing_obj2 = add_wing(offset=+maxr*rad)
+        colorize(wing_obj2,skin_mat)
 
         # initialize head
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
@@ -304,7 +337,7 @@ if __name__ == '__main__':
         beak_faces = add_beak(bm)
         
         # head color
-        colorize(skin_color,skin_mat)
+        colorize(head_obj,skin_mat)
         colorize_beak(head_obj,bm,beak_mat,beak_faces)
 
         bm.to_mesh(mesh)
