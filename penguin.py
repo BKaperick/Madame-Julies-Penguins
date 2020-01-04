@@ -42,10 +42,6 @@ def vector_sum(vecs):
     '''
     return reduce((lambda x,y:x+y),vecs)
 
-def sample_position_norm(m = 15, s=50):
-    r = random.normalvariate(m**.5, s)**2
-    return radius_toxy(r)
-
 def sample_position(avg=(0,0),mean = 20,minr=10):
     k = 3*mean/2
     th = mean/k
@@ -237,22 +233,6 @@ def get_side_curve(h=1):
     yr = body + feet
     return yr 
 
-    
-
-
-
-def conify(bm,ratio=.5):
-    '''
-    Transform upright cylinder into a conic-cylinder
-    with top face `ratio` radius of bottom face
-    '''
-    for f in bm.faces:
-        if f.normal.dot([0,0,1]) <= 0:
-            continue
-        center = vector_sum([v.co for v in f.verts])/len(f.verts)
-        for v in f.verts:
-            v.co[0:2] = ratio*(v.co.xy+center.xy)
-        
 def get_bm():        
     mesh = bpy.context.object.data
     bm = bmesh.new()
