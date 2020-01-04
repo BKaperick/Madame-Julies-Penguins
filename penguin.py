@@ -9,6 +9,11 @@ from julia import Main#import julia
 import mathutils
 from functools import reduce
 
+
+#############################
+### Functions for Logging ###
+#############################
+
 VERBOSITY = int(sys.argv[2]) if len(sys.argv) >= 3 else 0
 log_file = open('log.txt','w+')
 
@@ -21,11 +26,15 @@ def logger(func):
         return output
     return wrapper
 
-
 def printl(*args):
     line = ' '.join([str(a) for a in args])
     log_file.write(line+'\n')
     print(line)
+
+
+#############################
+###   Helper Functions    ###
+#############################
 
 def append_material(obj, mat):
     if VERBOSITY:
@@ -52,6 +61,57 @@ def radius_toxy(avg,r):
     angle = random.uniform(0,2*pi)
     return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
 
+def init_material(color, name):
+    new_mat = bpy.data.materials.new(name=name)
+    new_mat.diffuse_color = tuple(list(color)+[1])
+    return new_mat
+
+@logger
+def get_side_curve():
+    archetype = random.getrandbits(1)
+    if archetype:
+        # Broad-shouldered archetype
+        shoulder = 1.5 + random.random()
+        waist = 1 + .4*random.random()
+        bodylen = random.randint(8,15)
+        
+        # if shoulder/waist curve is linear, quadratic, or cubic
+        shoulder_curvature = random.choice([1,2,3])
+        waist_curvature = random.choice([1,2,3])
+        
+        #.35 and .3 constants are someone arbitrary, tuned to look nicely proportional
+        # shoulder goes from `shoulder` to `shoulder+.35`
+        body = [shoulder + x**(1/shoulder_curvature) for x in np.linspace(0,.35**shoulder_curvature,4)]
+        # torso is just linear between shoulder and waist
+        body = body + [x for x in np.linspace(shoulder+.35,waist+.3,bodylen)]
+        # waist goes from `waist+.3` to `waist`
+        body = body + [waist+x**(1/waist_curvature) for x in np.linspace(.3**waist_curvature,0,3)]
+
+    else:
+        # Pot-bellied archetype
+        shoulder = 1 + .5*random.random()
+        waist = random.random()
+        bodylen = random.randint(8,15)
+        waist_offset = random.randint(-2,2)
+        
+        # if shoulder/waist curve is linear, quadratic, or cubic
+        upper_curvature = random.choice([1,2,3])
+        lower_curvature = random.choice([1,2,3])
+        
+        # upper half goes from `shoulder` to `shoulder+waist`
+        body = [shoulder + x**(1/upper_curvature) for x in np.linspace(0,waist**upper_curvature, bodylen//2 - waist_offset)]
+        # lower half goes from `shoulder+waist` to `shoulder`
+        body = body + [shoulder + x**(1/lower_curvature) for x in np.linspace(waist**lower_curvature, 0, bodylen//2 + waist_offset)]
+    
+    feet = []
+    yr = body + feet
+    return yr 
+
+ 
+#############################
+###   Useful Generators   ###
+#############################
+
 def side_faces(bm):
     f_indices = [f.index for f in bm.faces]
     for i_f in f_indices:
@@ -76,6 +136,11 @@ def vertical_edges(f):
             #printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
             yield e,maxv
 
+
+#############################
+###  Top-level Functions  ###
+#############################
+ 
 def shape_body(bm,smoothness=24,iters=100):
     ycoeffs = get_side_curve()
     
@@ -118,11 +183,6 @@ def colorize(obj,mat=None):
     #mat.diffuse_color = color_scaled #blue
     #return color_scaled
     return mat
-
-def init_material(color, name):
-    new_mat = bpy.data.materials.new(name=name)
-    new_mat.diffuse_color = tuple(list(color)+[1])
-    return new_mat
 
 def colorize_chest(obj, chest_mat, epsilon = pi/6):
     append_material(obj,chest_mat)
@@ -192,47 +252,6 @@ def add_beak(bm):
     return v.index
     #return v.link_faces
 
-@logger
-def get_side_curve(h=1):
-    archetype = random.getrandbits(1)
-    if archetype:
-        # Broad-shouldered archetype
-        shoulder = 1.5 + random.random()
-        waist = 1 + .4*random.random()
-        bodylen = random.randint(8,15)
-        
-        # if shoulder/waist curve is linear, quadratic, or cubic
-        shoulder_curvature = random.choice([1,2,3])
-        waist_curvature = random.choice([1,2,3])
-        
-        #.35 and .3 constants are someone arbitrary, tuned to look nicely proportional
-        # shoulder goes from `shoulder` to `shoulder+.35`
-        body = [shoulder + x**(1/shoulder_curvature) for x in np.linspace(0,.35**shoulder_curvature,4)]
-        # torso is just linear between shoulder and waist
-        body = body + [x for x in np.linspace(shoulder+.35,waist+.3,bodylen)]
-        # waist goes from `waist+.3` to `waist`
-        body = body + [waist+x**(1/waist_curvature) for x in np.linspace(.3**waist_curvature,0,3)]
-
-    else:
-        # Pot-bellied archetype
-        shoulder = 1 + .5*random.random()
-        waist = random.random()
-        bodylen = random.randint(8,15)
-        waist_offset = random.randint(-2,2)
-        
-        # if shoulder/waist curve is linear, quadratic, or cubic
-        upper_curvature = random.choice([1,2,3])
-        lower_curvature = random.choice([1,2,3])
-        
-        # upper half goes from `shoulder` to `shoulder+waist`
-        body = [shoulder + x**(1/upper_curvature) for x in np.linspace(0,waist**upper_curvature, bodylen//2 - waist_offset)]
-        # lower half goes from `shoulder+waist` to `shoulder`
-        body = body + [shoulder + x**(1/lower_curvature) for x in np.linspace(waist**lower_curvature, 0, bodylen//2 + waist_offset)]
-    
-    feet = []
-    yr = body + feet
-    return yr 
-
 def get_bm():        
     mesh = bpy.context.object.data
     bm = bmesh.new()
@@ -270,8 +289,9 @@ if __name__ == '__main__':
     Main.include('interp.jl')
         
     # get rid of default cube at origin
-    bpy.data.objects.remove(object=bpy.data.objects["Cube"])
-    bpy.data.objects["Camera"].location[2] += 10
+    #bpy.data.objects.remove(object=bpy.data.objects["Cube"])
+    bpy.data.objects["Camera"].location = (0,60,15)
+    bpy.data.objects["Camera"].rotation_euler = (3*pi/2,pi,0)
     bpy.data.objects["Light"].location = (0,0,15)
     bpy.data.objects["Light"].scale = (15,15,15)
 
@@ -284,9 +304,22 @@ if __name__ == '__main__':
     
     chest_mat = init_material([1,1,1],"chest")
     beak_mat = init_material([1,140/255,0],"beak")
+    ice_mat = init_material([1,1,1],"ice")
+    sky_mat = init_material([101/255,216/255,1],"sky")
+    
+    # initialize iceberg
+    iceberg_obj = bpy.data.objects['Cube']
+    iceberg_obj.scale = (10,10,5)
+    iceberg_obj.location = (0,0,-iceberg_obj.scale[2])
+    colorize(iceberg_obj, ice_mat)
 
-
-
+    # initialize sky
+    sz = 150
+    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-20,sz/2-50),rotation=(pi/2,0,0))
+    sky_obj = bpy.data.objects['Plane']
+    colorize(sky_obj, sky_mat)
+    
+    
     for i in range(N):
         cyl_scale = 2*random.random() + 6
         x,y = sample_position(avg=(avgx,avgy))
