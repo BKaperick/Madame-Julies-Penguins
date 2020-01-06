@@ -51,15 +51,15 @@ def vector_sum(vecs):
     '''
     return reduce((lambda x,y:x+y),vecs)
 
-def sample_position(avg=(0,0),mean = 20,minr=10):
-    k = 3*mean/2
-    th = mean/k
-    r = random.gammavariate(k,th) + minr
-    return 0,0#radius_toxy(avg,r)
+#def sample_position(avg=(0,0),mean = 20,minr=10):
+#    k = 3*mean/2
+#    th = mean/k
+#    r = random.gammavariate(k,th) + minr
+#    return 0,0#radius_toxy(avg,r)
 
-def radius_toxy(avg,r):
-    angle = random.uniform(0,2*pi)
-    return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
+#def radius_toxy(avg,r):
+#    angle = random.uniform(0,2*pi)
+#    return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
 
 def init_material(color, name):
     new_mat = bpy.data.materials.new(name=name)
@@ -107,6 +107,23 @@ def get_side_curve():
     yr = body + feet
     return yr 
 
+def test_new_point(xy_bounds, circles, new_x, new_y, new_rad):
+    for px,py,r in circles:
+        d = sqrt((px - new_x)**2 +(py - new_y)**2)
+        if d <= r+new_rad:
+            return False
+    return True
+
+def sample_position(xy_bounds, circles, new_rad):
+    is_valid = False
+    while (not is_valid):
+        x = random.random()
+        y = random.random()
+        linscale = lambda z,b: b[0] + z*(b[1]-b[0])
+        x = linscale(x,xy_bounds[0])
+        y = linscale(y,xy_bounds[1])
+        is_valid = test_new_point(xy_bounds,circles,x,y,new_rad)
+    return x,y
  
 #############################
 ###   Useful Generators   ###
@@ -309,25 +326,23 @@ if __name__ == '__main__':
     
     # initialize iceberg
     iceberg_obj = bpy.data.objects['Cube']
-    iceberg_obj.scale = (10,10,5)
+    iceberg_obj.scale = (50,50,5)
     iceberg_obj.location = (0,0,-iceberg_obj.scale[2])
     colorize(iceberg_obj, ice_mat)
+    iceberg_bounds = ((-50,50),(-50,50))
 
     # initialize sky
     sz = 150
     bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-20,sz/2-50),rotation=(pi/2,0,0))
     sky_obj = bpy.data.objects['Plane']
     colorize(sky_obj, sky_mat)
-    
+ 
+    positions = []
     
     for i in range(N):
         cyl_scale = 2*random.random() + 6
-        x,y = sample_position(avg=(avgx,avgy))
-        x = x+15*i
-        avgx = (avgx*cyl_count + x)/(cyl_count+1)
-        avgy = (avgy*cyl_count + y)/(cyl_count+1)
         rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
-        bpy.ops.mesh.primitive_cylinder_add(location=(x,y,0),radius=rad)
+        bpy.ops.mesh.primitive_cylinder_add(location=(0,0,0),radius=rad)
 
         if cyl_count == 0:
             body_name = "Cylinder"
@@ -338,7 +353,6 @@ if __name__ == '__main__':
         
         body_obj = bpy.data.objects[body_name]
         body_obj.scale = (1,1,cyl_scale)
-        body_obj.location = (x,y,cyl_scale)
         
         # add skin and chest color to body
         #skin_mat = bpy.data.materials.new(name="skin_"+body_name) #set new material to variable
@@ -347,14 +361,18 @@ if __name__ == '__main__':
 
         # add body shape
         bm,mesh = get_bm()
-        maxr = shape_body(bm)
+        maxr = shape_body(bm)*rad
         bm.to_mesh(mesh)
         bm.free()
         
+        x,y = sample_position(iceberg_bounds, positions, maxr)
+        positions.append((x,y,maxr))
+        body_obj.location = (x,y,cyl_scale)
+
         # add wings
-        wing_obj = add_wing(offset=-maxr*rad)
+        wing_obj = add_wing(offset=-maxr)
         colorize(wing_obj,skin_mat)
-        wing_obj2 = add_wing(offset=+maxr*rad)
+        wing_obj2 = add_wing(offset=+maxr)
         colorize(wing_obj2,skin_mat)
 
         # initialize head
