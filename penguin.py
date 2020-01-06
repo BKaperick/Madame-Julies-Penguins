@@ -114,15 +114,19 @@ def test_new_point(xy_bounds, circles, new_x, new_y, new_rad):
             return False
     return True
 
-def sample_position(xy_bounds, circles, new_rad):
+def sample_position(xy_bounds, circles, new_rad, max_tries = 100):
     is_valid = False
-    while (not is_valid):
+    tries = 0
+    while (not is_valid) and tries < max_tries:
         x = random.random()
         y = random.random()
         linscale = lambda z,b: b[0] + z*(b[1]-b[0])
         x = linscale(x,xy_bounds[0])
         y = linscale(y,xy_bounds[1])
         is_valid = test_new_point(xy_bounds,circles,x,y,new_rad)
+        tries += 1
+    if tries == max_tries:
+        println("Iceberg was overstuffed.  One penguin fell into the ocean.")
     return x,y
  
 #############################
