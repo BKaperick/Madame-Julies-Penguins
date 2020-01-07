@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import random
 import sys
-from math import sqrt,pi,sin,cos,acos
+from math import sqrt,pi,sin,cos,acos,asin
 from matplotlib import pyplot as plt
 import numpy as np
 from julia import Main#import julia
@@ -106,6 +106,33 @@ def get_side_curve():
     feet = []
     yr = body + feet
     return yr 
+
+def eye_position(cx,cy,cz,rad,n1,n2,eye_rad):
+    minwidth = asin(eye_rad/rad)
+    width = random.random()*(pi/2-.4 - minwidth) + minwidth # width in radians between [min,pi/2]
+    height = .25*pi*(1+random.random()) # incline angle (0 is straight up, pi straight down) on [.25pi,.5pi]
+    c = cos(width); s = sin(width); ss = sin(height)
+    m1 = n2; m2 = -n1
+    # just a spherical to cartesian conversion in forward basis
+    x1 = -rad*(n1*c - n2*s)*ss
+    y1 = rad*(n2*c - n1*s)*ss
+    print(width,height,x1,y1)
+    z =  rad*cos(height)
+    
+    # householder reflection in xy plane
+#    p1dotn = x1*n1 + y1*n2
+#    x2 = x1-2*p1dotn*n1
+#    y2 = y1-2*p1dotn*n2
+    p1dotn = x1*m1 + y1*m2
+    x2 = x1-2*p1dotn*m1
+    y2 = y1-2*p1dotn*m2
+
+    return (cx+x1,cy+y1,cz+z),(cx+x2,cy+y2,cz+z)
+
+
+
+
+    
 
 def test_new_point(xy_bounds, circles, new_x, new_y, new_rad):
     for px,py,r in circles:
@@ -337,7 +364,7 @@ if __name__ == '__main__':
 
     # initialize sky
     sz = 150
-    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-20,sz/2-50),rotation=(pi/2,0,0))
+    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-50,sz/2-50),rotation=(pi/2,0,0))
     sky_obj = bpy.data.objects['Plane']
     colorize(sky_obj, sky_mat)
  
@@ -353,7 +380,7 @@ if __name__ == '__main__':
             head_name = "Sphere.002"
         else:
             body_name = "Cylinder." + str(cyl_count).zfill(3)
-            head_name = "Sphere." + str(3*cyl_count+2).zfill(3)
+            head_name = "Sphere." + str(5*cyl_count+2).zfill(3)
         
         body_obj = bpy.data.objects[body_name]
         body_obj.scale = (1,1,cyl_scale)
@@ -393,5 +420,14 @@ if __name__ == '__main__':
         bm.to_mesh(mesh)
         bm.free()
         cyl_count+=1
+
+        # initialize eyes
+        min_eye_rad = rad/6
+        max_eye_rad = rad/3
+        eye_rad = random.random()*(max_eye_rad-min_eye_rad)+min_eye_rad
+        eye_pos1, eye_pos2 = eye_position(*head_obj.location,rad,0,1,eye_rad)
+        bpy.ops.mesh.primitive_uv_sphere_add(location=eye_pos1,radius=eye_rad)
+        bpy.ops.mesh.primitive_uv_sphere_add(location=eye_pos2,radius=eye_rad)
+
 
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
