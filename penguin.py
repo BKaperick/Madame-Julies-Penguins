@@ -207,7 +207,7 @@ def colorize(obj,mat=None):
     #activeObject = bpy.context.active_object #Set active object to variable
 
     #mat.diffuse_color = (1, 5, .2, 1) #yellow
-    probs = [100,10,100,10,10,10,10,10,10,100]
+    probs = [100,10,80,10,10,100,10,10,10,100]
     colors = [
             (123,104,238),  # medium slate blue
             (230,230,250),  # lavender
@@ -365,19 +365,29 @@ if __name__ == '__main__':
     chest_mat = init_material([1,1,1],"chest")
     beak_mat = init_material([1,140/255,0],"beak")
     ice_mat = init_material([1,1,1],"ice")
+    water_mat = init_material([0,0,1],"water")
     sky_mat = init_material([101/255,216/255,1],"sky")
+    eye_mat = init_material([0,0,.1],"eyes")
     
     # initialize iceberg
     iceberg_obj = bpy.data.objects['Cube']
     iceberg_obj.scale = (50,50,5)
-    iceberg_obj.location = (0,0,-iceberg_obj.scale[2])
+    sea_level = -iceberg_obj.scale[2]
+    iceberg_obj.location = (0,0,sea_level)
     colorize(iceberg_obj, ice_mat)
     iceberg_bounds = ((-50,50),(-50,50))
 
+    # initialize water
+    sz = 500
+    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,0,sea_level))
+    water_obj = bpy.context.active_object
+
+    colorize(water_obj, water_mat)
+
     # initialize sky
-    sz = 150
+    sz = 500
     bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-50,sz/2-50),rotation=(pi/2,0,0))
-    sky_obj = bpy.data.objects['Plane']
+    sky_obj = bpy.context.active_object
     colorize(sky_obj, sky_mat)
  
     positions = []
@@ -438,7 +448,9 @@ if __name__ == '__main__':
         eye_rad = random.random()*(max_eye_rad-min_eye_rad)+min_eye_rad
         eye_pos1, eye_pos2 = eye_position(*head_obj.location,rad,0,1,eye_rad)
         left_eye = add_eye(eye_pos1,head_obj.location,eye_rad)
+        colorize(left_eye,eye_mat)
         right_eye = add_eye(eye_pos2,head_obj.location,eye_rad)
+        colorize(right_eye,eye_mat)
 
 
 
