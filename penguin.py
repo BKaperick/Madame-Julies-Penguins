@@ -5,6 +5,8 @@ import sys
 from math import sqrt,pi,sin,cos,acos,asin
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.linalg import norm
+#from np.linalg import norm
 from julia import Main#import julia
 import mathutils
 from functools import reduce
@@ -112,17 +114,13 @@ def eye_position(cx,cy,cz,rad,n1,n2,eye_rad):
     width = random.random()*(pi/2-.4 - minwidth) + minwidth # width in radians between [min,pi/2]
     height = .25*pi*(1+random.random()) # incline angle (0 is straight up, pi straight down) on [.25pi,.5pi]
     c = cos(width); s = sin(width); ss = sin(height)
-    m1 = n2; m2 = -n1
     # just a spherical to cartesian conversion in forward basis
     x1 = -rad*(n1*c - n2*s)*ss
     y1 = rad*(n2*c - n1*s)*ss
-    print(width,height,x1,y1)
     z =  rad*cos(height)
     
     # householder reflection in xy plane
-#    p1dotn = x1*n1 + y1*n2
-#    x2 = x1-2*p1dotn*n1
-#    y2 = y1-2*p1dotn*n2
+    m1 = n2; m2 = -n1
     p1dotn = x1*m1 + y1*m2
     x2 = x1-2*p1dotn*m1
     y2 = y1-2*p1dotn*m2
@@ -181,7 +179,8 @@ def vertical_edges(f):
             maxv = e.verts[1]
             if e_direction[-1] < 0:
                 maxv = e.verts[0]
-            #printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
+            if VERBOSITY:
+                printl("returning edge direction {0} with verts: \n{1} and \n{2}".format(e_direction, maxv.co.xy,e.other_vert(maxv).co))
             yield e,maxv
 
 
@@ -332,9 +331,23 @@ def add_wing(offset=5,tilt=pi/24):
     #print("wing: ", obj)
     return obj
 
+def add_eye(e,c,r,skew_factor=.2):
+    #print(list(c),list(e))
+    matrix = Main.transformation_matrix(list(c), list(e), skew_factor)
+    matrix = mathutils.Matrix(matrix)
+    #print(matrix)
+    bpy.ops.mesh.primitive_uv_sphere_add(location=e,radius=r)
+    eye = bpy.context.active_object
+    bm,mesh = get_bm()
+    bm.transform(matrix)
+    bm.to_mesh(mesh)
+    bm.free()
+    return eye        
+
 if __name__ == '__main__':
     
     Main.include('interp.jl')
+    Main.include('geometry.jl')
         
     # get rid of default cube at origin
     #bpy.data.objects.remove(object=bpy.data.objects["Cube"])
@@ -346,7 +359,6 @@ if __name__ == '__main__':
     # number of grid points in x,y directions
     N = int(sys.argv[1])
 
-    cyl_count = 0
     avgx = 0
     avgy = 0
     
@@ -375,12 +387,12 @@ if __name__ == '__main__':
         rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
         bpy.ops.mesh.primitive_cylinder_add(location=(0,0,0),radius=rad)
 
-        if cyl_count == 0:
+        if i == 0:
             body_name = "Cylinder"
             head_name = "Sphere.002"
         else:
-            body_name = "Cylinder." + str(cyl_count).zfill(3)
-            head_name = "Sphere." + str(5*cyl_count+2).zfill(3)
+            body_name = "Cylinder." + str(i).zfill(3)
+            head_name = "Sphere." + str(5*i+2).zfill(3)
         
         body_obj = bpy.data.objects[body_name]
         body_obj.scale = (1,1,cyl_scale)
@@ -419,15 +431,15 @@ if __name__ == '__main__':
 
         bm.to_mesh(mesh)
         bm.free()
-        cyl_count+=1
 
         # initialize eyes
         min_eye_rad = rad/6
         max_eye_rad = rad/3
         eye_rad = random.random()*(max_eye_rad-min_eye_rad)+min_eye_rad
         eye_pos1, eye_pos2 = eye_position(*head_obj.location,rad,0,1,eye_rad)
-        bpy.ops.mesh.primitive_uv_sphere_add(location=eye_pos1,radius=eye_rad)
-        bpy.ops.mesh.primitive_uv_sphere_add(location=eye_pos2,radius=eye_rad)
+        left_eye = add_eye(eye_pos1,head_obj.location,eye_rad)
+        right_eye = add_eye(eye_pos2,head_obj.location,eye_rad)
+
 
 
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')

@@ -4,6 +4,10 @@ TO DO:
 * Figure out how lighting will work to give sunlight
 * Background sky without shadows and maybe some clouds
 * Add subtle movements to give penguins life
-* Eyes
+* Pupils
 * Let them be oriented in different ways
 * reduce broadness and angles in buff penguins
+* Formalize genes and distributions
+* Improve colors
+
+![Current progress:](https://raw.githubusercontent.com/BKaperick/Madame-Julies-Penguins/sample.png)
