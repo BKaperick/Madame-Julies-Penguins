@@ -10,4 +10,4 @@ TO DO:
 * Formalize genes and distributions
 * Improve colors
 
-![Current progress:](https://raw.githubusercontent.com/BKaperick/Madame-Julies-Penguins/sample.png)
+![Current progress:](./sample.png)
