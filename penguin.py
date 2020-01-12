@@ -382,7 +382,7 @@ if True:#__name__ == '__main__':
     camera_obj = bpy.data.objects["Camera"]
     camera_obj.location = (0,250,125)
     camera_obj.rotation_euler = (4.276,pi,0)
-    camera_obj.clip_end = 1000
+    camera_obj.data.clip_end = 1000
     bpy.data.objects["Light"].location = (0,0,-50)
     bpy.data.objects["Light"].scale = (15,15,15)
 
@@ -400,15 +400,20 @@ if True:#__name__ == '__main__':
 
     bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
 
-    sky_mat = init_material([],"sky")
-    sky_mat.use_nodes = True
-    node_tree = sky_mat.node_tree
-    node = node_tree.nodes.new("ShaderNodeTexImage")
+    #sky_mat = init_material([],"sky")
+    #sky_mat.use_nodes = True
+    world = bpy.data.worlds["World"]
+    node_tree = world.node_tree
+    node = node_tree.nodes.new("ShaderNodeTexSky")
     node.select = True
     node_tree.nodes.active = node
+    
+    out = node.outputs[0]
+    bg = node_tree.nodes["World Output"]
+    node_tree.links.new(out, bg.inputs[0])
 
-    bpy.data.textures.new("skytexture", type='CLOUDS')
-    sky_text = bpy.data.textures[-1]
+    #bpy.data.textures.new("skytexture", type='CLOUDS')
+    #sky_text = bpy.data.textures[-1]
     
 
     eye_mat = init_material([0,0,.1],"eyes")
@@ -426,7 +431,7 @@ if True:#__name__ == '__main__':
 
     # initialize sky
     sz = 500
-    world_obj = bpy.context.scene.world
+    #world_obj = bpy.context.scene.world
     #world_obj.use_sky_paper = True
     #world_obj = bpy.context.active_object
     #colorize(world_obj, sky_mat)
