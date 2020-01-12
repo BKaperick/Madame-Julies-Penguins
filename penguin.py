@@ -65,7 +65,8 @@ def vector_sum(vecs):
 
 def init_material(color, name):
     new_mat = bpy.data.materials.new(name=name)
-    new_mat.diffuse_color = tuple(list(color)+[1])
+    if len(color) == 3:
+        new_mat.diffuse_color = tuple(list(color)+[1])
     return new_mat
 
 @logger
@@ -151,7 +152,7 @@ def sample_position(xy_bounds, circles, new_rad, max_tries = 100):
         is_valid = test_new_point(xy_bounds,circles,x,y,new_rad)
         tries += 1
     if tries == max_tries:
-        println("Iceberg was overstuffed.  One penguin fell into the ocean.")
+        print("Iceberg was overstuffed.  One penguin fell into the ocean.")
     return x,y
  
 #############################
@@ -207,7 +208,7 @@ def colorize(obj,mat=None):
     #activeObject = bpy.context.active_object #Set active object to variable
 
     #mat.diffuse_color = (1, 5, .2, 1) #yellow
-    probs = [100,10,80,10,10,100,10,10,10,100]
+    probs = [100,10,80,100,10,100,100,200,10,20]
     colors = [
             (123,104,238),  # medium slate blue
             (230,230,250),  # lavender
@@ -344,20 +345,49 @@ def add_eye(e,c,r,skew_factor=.2):
     bm.free()
     return eye        
 
-if __name__ == '__main__':
+def add_water(sea_level, filepath="/Users/Bryan/Documents/Projects/Blender/Madame-Julies-Penguins/water_surface_texture.jpg"):
+    # initialize water
+    sz = 500
+    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,0,sea_level))
+    water_obj = bpy.context.active_object
+
+    water_mat = init_material([],"water")
+    water_mat.use_nodes = True
+    node_tree = water_mat.node_tree
+    bsdf = node_tree.nodes["Principled BSDF"]
+    img = bpy.data.images.load(filepath)
+    node = node_tree.nodes.new("ShaderNodeTexImage")
+    node.image = img
+    node_tree.links.new(bsdf.inputs['Base Color'], node.outputs['Color'])
+    node.select = True
+    node_tree.nodes.active = node
+
+    colorize(water_obj, water_mat)
+    return water_obj
+
+# eyes = {'slanted', 'circular'}
+# beak = {'short/stubby', 'long narrow'}
+# body = {'macho', 'chubby'}
+#
+
+
+if True:#__name__ == '__main__':
+
+    bpy.context.scene.render.engine = 'CYCLES'
+    #bpy.types.RenderSettings(alpha_mode='SKY')
     
     Main.include('interp.jl')
     Main.include('geometry.jl')
         
-    # get rid of default cube at origin
-    #bpy.data.objects.remove(object=bpy.data.objects["Cube"])
-    bpy.data.objects["Camera"].location = (0,60,15)
-    bpy.data.objects["Camera"].rotation_euler = (3*pi/2,pi,0)
-    bpy.data.objects["Light"].location = (0,0,15)
+    camera_obj = bpy.data.objects["Camera"]
+    camera_obj.location = (0,250,125)
+    camera_obj.rotation_euler = (4.276,pi,0)
+    camera_obj.clip_end = 1000
+    bpy.data.objects["Light"].location = (0,0,-50)
     bpy.data.objects["Light"].scale = (15,15,15)
 
     # number of grid points in x,y directions
-    N = int(sys.argv[1])
+    N = int(sys.argv[1]) if len(sys.argv) >= 2 else 0
 
     avgx = 0
     avgy = 0
@@ -365,30 +395,42 @@ if __name__ == '__main__':
     chest_mat = init_material([1,1,1],"chest")
     beak_mat = init_material([1,140/255,0],"beak")
     ice_mat = init_material([1,1,1],"ice")
-    water_mat = init_material([0,0,1],"water")
-    sky_mat = init_material([101/255,216/255,1],"sky")
+    
+
+
+    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
+
+    sky_mat = init_material([],"sky")
+    sky_mat.use_nodes = True
+    node_tree = sky_mat.node_tree
+    node = node_tree.nodes.new("ShaderNodeTexImage")
+    node.select = True
+    node_tree.nodes.active = node
+
+    bpy.data.textures.new("skytexture", type='CLOUDS')
+    sky_text = bpy.data.textures[-1]
+    
+
     eye_mat = init_material([0,0,.1],"eyes")
     
     # initialize iceberg
     iceberg_obj = bpy.data.objects['Cube']
     iceberg_obj.scale = (50,50,5)
-    sea_level = -iceberg_obj.scale[2]
-    iceberg_obj.location = (0,0,sea_level)
+    sea_level = -2*iceberg_obj.scale[2]
+    iceberg_obj.location = (0,0,sea_level+iceberg_obj.scale[2])
     colorize(iceberg_obj, ice_mat)
     iceberg_bounds = ((-50,50),(-50,50))
-
-    # initialize water
-    sz = 500
-    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,0,sea_level))
-    water_obj = bpy.context.active_object
-
-    colorize(water_obj, water_mat)
+    
+    # seems to work
+    add_water(sea_level)
 
     # initialize sky
     sz = 500
-    bpy.ops.mesh.primitive_plane_add(size=sz, location=(0,-50,sz/2-50),rotation=(pi/2,0,0))
-    sky_obj = bpy.context.active_object
-    colorize(sky_obj, sky_mat)
+    world_obj = bpy.context.scene.world
+    #world_obj.use_sky_paper = True
+    #world_obj = bpy.context.active_object
+    #colorize(world_obj, sky_mat)
+
  
     positions = []
     
@@ -451,7 +493,6 @@ if __name__ == '__main__':
         colorize(left_eye,eye_mat)
         right_eye = add_eye(eye_pos2,head_obj.location,eye_rad)
         colorize(right_eye,eye_mat)
-
 
 
     bpy.ops.wm.save_as_mainfile(filepath='penguin.blend')
