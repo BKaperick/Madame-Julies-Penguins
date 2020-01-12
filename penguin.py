@@ -345,6 +345,17 @@ def add_eye(e,c,r,skew_factor=.2):
     bm.free()
     return eye        
 
+def add_sky(world):
+    # Add sky texture to world node tree
+    node_tree = world.node_tree
+    node = node_tree.nodes.new("ShaderNodeTexSky")
+    node.select = True
+    node_tree.nodes.active = node
+    # Link sky texture to world output
+    out = node.outputs[0]
+    bg = node_tree.nodes["World Output"]
+    node_tree.links.new(out, bg.inputs[0])
+
 def add_water(sea_level, filepath="/Users/Bryan/Documents/Projects/Blender/Madame-Julies-Penguins/water_surface_texture.jpg"):
     # initialize water
     sz = 500
@@ -365,97 +376,73 @@ def add_water(sea_level, filepath="/Users/Bryan/Documents/Projects/Blender/Madam
     colorize(water_obj, water_mat)
     return water_obj
 
+def add_iceberg(height=5):
+    # initialize iceberg
+    iceberg_obj = bpy.data.objects['Cube']
+    iceberg_obj.scale = (50,50,height/2)
+    iceberg_obj.location = (0,0,-height/2)
+    colorize(iceberg_obj, ice_mat)
+    iceberg_bounds = ((-50,50),(-50,50))
+    return iceberg_bounds
+
 # eyes = {'slanted', 'circular'}
 # beak = {'short/stubby', 'long narrow'}
 # body = {'macho', 'chubby'}
 #
 
 
-if True:#__name__ == '__main__':
+if __name__ == '__main__':
 
-    bpy.context.scene.render.engine = 'CYCLES'
-    #bpy.types.RenderSettings(alpha_mode='SKY')
     
+    # Initialize Julia files
     Main.include('interp.jl')
     Main.include('geometry.jl')
-        
+    
+    # Initialize blender settings/objects
+    bpy.context.scene.render.engine = 'CYCLES'
+    bpy.data.objects.remove(bpy.data.objects["Light"], do_unlink=True)
+    world = bpy.data.worlds["World"]
     camera_obj = bpy.data.objects["Camera"]
+
+    # Number of penguins
+    N = int(sys.argv[1]) if len(sys.argv) >= 2 else 0
+
+    # Initialize camera position
     camera_obj.location = (0,250,125)
     camera_obj.rotation_euler = (4.276,pi,0)
     camera_obj.data.clip_end = 1000
-    bpy.data.objects["Light"].location = (0,0,-50)
-    bpy.data.objects["Light"].scale = (15,15,15)
-
-    # number of grid points in x,y directions
-    N = int(sys.argv[1]) if len(sys.argv) >= 2 else 0
+    
 
     avgx = 0
     avgy = 0
     
+    # Initialize materials 
     chest_mat = init_material([1,1,1],"chest")
     beak_mat = init_material([1,140/255,0],"beak")
     ice_mat = init_material([1,1,1],"ice")
-    
-
-
-    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
-
-    #sky_mat = init_material([],"sky")
-    #sky_mat.use_nodes = True
-    world = bpy.data.worlds["World"]
-    node_tree = world.node_tree
-    node = node_tree.nodes.new("ShaderNodeTexSky")
-    node.select = True
-    node_tree.nodes.active = node
-    
-    out = node.outputs[0]
-    bg = node_tree.nodes["World Output"]
-    node_tree.links.new(out, bg.inputs[0])
-
-    #bpy.data.textures.new("skytexture", type='CLOUDS')
-    #sky_text = bpy.data.textures[-1]
-    
-
     eye_mat = init_material([0,0,.1],"eyes")
     
-    # initialize iceberg
-    iceberg_obj = bpy.data.objects['Cube']
-    iceberg_obj.scale = (50,50,5)
-    sea_level = -2*iceberg_obj.scale[2]
-    iceberg_obj.location = (0,0,sea_level+iceberg_obj.scale[2])
-    colorize(iceberg_obj, ice_mat)
-    iceberg_bounds = ((-50,50),(-50,50))
     
-    # seems to work
-    add_water(sea_level)
-
-    # initialize sky
-    sz = 500
-    #world_obj = bpy.context.scene.world
-    #world_obj.use_sky_paper = True
-    #world_obj = bpy.context.active_object
-    #colorize(world_obj, sky_mat)
+    # Add environment
+    iceberg_bounds = add_iceberg(height=5)
+    add_water(-5)
+    add_sky(world)
 
  
     positions = []
     
     for i in range(N):
+        
+        # Choose height and core radius
         cyl_scale = 2*random.random() + 6
         rad = random.normalvariate(1,.1) + cyl_scale*.5 - .5
-        bpy.ops.mesh.primitive_cylinder_add(location=(0,0,0),radius=rad)
 
-        if i == 0:
-            body_name = "Cylinder"
-            head_name = "Sphere.002"
-        else:
-            body_name = "Cylinder." + str(i).zfill(3)
-            head_name = "Sphere." + str(5*i+2).zfill(3)
-        
-        body_obj = bpy.data.objects[body_name]
+        # Add body
+        bpy.ops.mesh.primitive_cylinder_add(location=(0,0,0),radius=rad)
+        body_obj = bpy.context.active_object
         body_obj.scale = (1,1,cyl_scale)
         
         # add skin and chest color to body
-        #skin_mat = bpy.data.materials.new(name="skin_"+body_name) #set new material to variable
         skin_mat = colorize(body_obj)
         colorize_chest(body_obj, chest_mat)   
 
@@ -477,7 +464,7 @@ if True:#__name__ == '__main__':
 
         # initialize head
         bpy.ops.mesh.primitive_uv_sphere_add(location=(x,y,2*cyl_scale+1),radius=rad)
-        head_obj = bpy.data.objects[head_name]
+        head_obj = bpy.context.active_object#data.objects[head_name]
         bm,mesh = get_bm()
         
         beak_faces = add_beak(bm)

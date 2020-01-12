@@ -10,4 +10,4 @@ TO DO:
 * Formalize genes and distributions
 * Improve colors
 
-![Current progress:](./sample.png)
+![Current progress:](./penguins.png)
