@@ -53,16 +53,6 @@ def vector_sum(vecs):
     '''
     return reduce((lambda x,y:x+y),vecs)
 
-#def sample_position(avg=(0,0),mean = 20,minr=10):
-#    k = 3*mean/2
-#    th = mean/k
-#    r = random.gammavariate(k,th) + minr
-#    return 0,0#radius_toxy(avg,r)
-
-#def radius_toxy(avg,r):
-#    angle = random.uniform(0,2*pi)
-#    return avg[0]+r*cos(angle),avg[1]+r*sin(angle)
-
 def init_material(color, name):
     new_mat = bpy.data.materials.new(name=name)
     if len(color) == 3:
@@ -294,11 +284,7 @@ def extrude_cylinder_side(bm,knots,fvals):
 def add_beak(bm):
     v = max(bm.verts, key=lambda x: x.co[1])
     v.co[1] += random.normalvariate(5,1)
-    #print(v.link_faces)
-    #for f in v.link_faces:
-    #    print(f)
     return v.index
-    #return v.link_faces
 
 def get_bm():        
     mesh = bpy.context.object.data
@@ -424,8 +410,9 @@ if __name__ == '__main__':
     
     
     # Add environment
-    iceberg_bounds = add_iceberg(height=5)
-    add_water(-5)
+    height = 5
+    iceberg_bounds = add_iceberg(5)
+    add_water(-height)
     add_sky(world)
 
  
